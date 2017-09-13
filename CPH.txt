@@ -1,0 +1,76 @@
+﻿select conditions2.comp_group, conditions2.resp_group, conditions2.num_cond, scrubbed2.scrub_cond from 
+(select COALESCE( adm1.sys_adm_desc, ' Not Repaired') as comp_group ,COALESCE( respar1.rsp_area1_desc,'Not Repaired') as resp_group, count(*) as Num_cond from 
+(SELECT ETCONDTN00.EIN_NBR, etcondtn00.cond_nbr 
+FROM         ETSTATUS00 JOIN ETLINMDL00 ON  
+                        ETSTATUS00.PLANT_CODE = ETLINMDL00.PLANT_CODE AND 
+                        ETSTATUS00.PRODUCT = ETLINMDL00.PRODUCT AND 
+                        ETSTATUS00.FAMILY_CODE = ETLINMDL00.FAMILY_CODE AND 
+                        ETSTATUS00.MODEL_CODE = ETLINMDL00.MODEL_CODE AND 
+                        ETSTATUS00.LINE_CODE = ETLINMDL00.LINE_CODE, 
+                ETCONDTN00 
+WHERE ETSTATUS00.EIN_NBR = ETCONDTN00.EIN_NBR AND 
+                ETSTATUS00.SEQUENCE_NBR = ETCONDTN00.SEQUENCE_NBR AND 
+                 ((ETCONDTN00.DATE_ADDED = 20130124 AND ETCONDTN00.TIME_ADDED >=13100) OR (ETCONDTN00.DATE_ADDED = 20130125 AND ETCONDTN00.TIME_ADDED < 13100)) AND  
+                  ETCONDTN00.COND_DELETED <> 'Y' AND 
+                ETCONDTN00.OMIT_FLAG <> 'Y' AND 
+                ETLINMDL00.CASED_ONLY_FLAG <> 'Y' AND  
+                NOT EXISTS ( 
+                        SELECT *  
+                        FROM ETREPAIR00 
+                        WHERE ETCONDTN00.EIN_NBR = ETREPAIR00.EIN_NBR AND 
+                                        ETCONDTN00.SEQUENCE_NBR = ETREPAIR00.SEQUENCE_NBR AND 
+                                        ETCONDTN00.COND_NBR = ETREPAIR00.COND_NBR AND 
+                                        ETREPAIR00.ROOT_CAUSE  = 86 AND 
+                                        ETREPAIR00.RPR_DELETED <> 'Y') 
+ AND ETLINMDL00.PLANT_CODE = 2) as conditions1 
+left join etrepair00 repair1 on repair1.ein_nbr = conditions1.ein_nbr and conditions1.cond_nbr = repair1.cond_nbr 
+left join etrespar00 respar1 on repair1.resparea_id1 = respar1.resp_area1_id 
+left join etsysadm adm1 on adm1.admin_id = respar1.comp_area and adm1.admin_type = 'COMPAREA' 
+group by respar1.rsp_area1_desc, adm1.sys_adm_desc 
+) as conditions2 ,
+(SELECT COUNT(ETSTATUS00.EIN_NBR) AS COUNT 
+FROM         ETSTATUS00 JOIN ETLINMDL00 ON 
+                        ETSTATUS00.PLANT_CODE = ETLINMDL00.PLANT_CODE AND 
+                        ETSTATUS00.PRODUCT = ETLINMDL00.PRODUCT AND 
+                        ETSTATUS00.FAMILY_CODE = ETLINMDL00.FAMILY_CODE AND 
+                        ETSTATUS00.MODEL_CODE = ETLINMDL00.MODEL_CODE AND 
+                        ETSTATUS00.LINE_CODE = ETLINMDL00.LINE_CODE  
+WHERE ((OFFLINE_DATE = 20130124 AND OFFLINE_TIME >=13100) OR (OFFLINE_DATE = 20130125 AND OFFLINE_TIME < 13100)) AND 
+                SEQUENCE_NBR = 1 AND 
+                ETLINMDL00.CASED_ONLY_FLAG <> 'Y' 
+ AND ETLINMDL00.PLANT_CODE = 2 AND ETLINMDL00.LINE_CODE = 2) as net 
+left join 
+(select COALESCE( adm1.sys_adm_desc, ' Not Repaired') as comp_group,COALESCE( respar1.rsp_area1_desc,'Not Repaired') as resp_group, count(*) as scrub_cond from 
+(SELECT ETCONDTN00.EIN_NBR, etcondtn00.cond_nbr FROM ETCONDTN00 
+INNER JOIN ( 
+SELECT ETSTATUS00.EIN_NBR, MIN(ETCONDTN00.SEQUENCE_NBR * 100000 + ETCONDTN00.COND_NBR) as MIN_SC_NBR 
+FROM         ETSTATUS00 JOIN ETLINMDL00 ON  
+                        ETSTATUS00.PLANT_CODE = ETLINMDL00.PLANT_CODE AND 
+                        ETSTATUS00.PRODUCT = ETLINMDL00.PRODUCT AND 
+                        ETSTATUS00.FAMILY_CODE = ETLINMDL00.FAMILY_CODE AND 
+                        ETSTATUS00.MODEL_CODE = ETLINMDL00.MODEL_CODE AND 
+                        ETSTATUS00.LINE_CODE = ETLINMDL00.LINE_CODE, 
+                ETCONDTN00 
+WHERE ETSTATUS00.EIN_NBR = ETCONDTN00.EIN_NBR AND 
+                ETSTATUS00.SEQUENCE_NBR = ETCONDTN00.SEQUENCE_NBR AND 
+                 ETCONDTN00.EIN_NBR IN (SELECT EIN_NBR FROM ETCONDTN00 WHERE ((ETCONDTN00.DATE_ADDED = 20130124 AND ETCONDTN00.TIME_ADDED >=13100) OR (ETCONDTN00.DATE_ADDED = 20130125 AND ETCONDTN00.TIME_ADDED < 13100))) AND  
+                  ETCONDTN00.COND_DELETED <> 'Y' AND 
+                ETCONDTN00.OMIT_FLAG <> 'Y' AND 
+                ETLINMDL00.CASED_ONLY_FLAG <> 'Y' AND  
+                NOT EXISTS ( 
+                        SELECT *  
+                        FROM ETREPAIR00 
+                        WHERE ETCONDTN00.EIN_NBR = ETREPAIR00.EIN_NBR AND 
+                                        ETCONDTN00.SEQUENCE_NBR = ETREPAIR00.SEQUENCE_NBR AND 
+                                        ETCONDTN00.COND_NBR = ETREPAIR00.COND_NBR AND 
+                                        (ETREPAIR00.ROOT_CAUSE  = 86 OR ETREPAIR00.ROOT_CAUSE IN (2,75,86,87,94)) AND 
+                                        ETREPAIR00.RPR_DELETED <> 'Y') 
+ AND ETLINMDL00.PLANT_CODE = 2 AND ETCONDTN00.COND_LEVEL1 NOT IN (105)  
+GROUP BY ETSTATUS00.EIN_NBR ) as sc 
+ ON sc.EIN_NBR = ETCONDTN00.EIN_NBR AND sc.MIN_SC_NBR = (ETCONDTN00.SEQUENCE_NBR * 100000 + ETCONDTN00.COND_NBR)  WHERE ((ETCONDTN00.DATE_ADDED = 20130124 AND ETCONDTN00.TIME_ADDED >=13100) OR (ETCONDTN00.DATE_ADDED = 20130125 AND ETCONDTN00.TIME_ADDED < 13100)) 
+) as scrubbed1 
+left join etrepair00 repair1 on repair1.ein_nbr = scrubbed1.ein_nbr and scrubbed1.cond_nbr = repair1.cond_nbr 
+left join etrespar00 respar1 on repair1.resparea_id1 = respar1.resp_area1_id 
+left join etsysadm adm1 on adm1.admin_id = respar1.comp_area and adm1.admin_type = 'COMPAREA' 
+group by respar1.rsp_area1_desc, adm1.sys_adm_desc 
+) as scrubbed2 on conditions2.comp_group = scrubbed2.comp_group and conditions2.resp_group = scrubbed2.resp_group
